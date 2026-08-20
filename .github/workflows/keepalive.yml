@@ -1,0 +1,40 @@
+# ---------------------------------------------------------------------------
+# keepalive — the one thing that can silently kill this monitor.
+#
+# GitHub DISABLES scheduled workflows after 60 days of repository inactivity.
+# This repo has no reason to ever receive a commit, so without this it would
+# switch itself off after two months and the outage alerting would be gone
+# with nothing announcing it — a monitor that fails silent is the worst kind.
+#
+# So once a week this writes the date into last-run.txt and commits it. That
+# is repository activity, and the 60-day clock restarts.
+#
+# ⚠ Belt and braces, not a guarantee: GitHub also EMAILS the repo owner before
+# it disables a schedule. If that mail ever arrives, open the Actions tab and
+# press "Enable workflow" — do not assume this file saved you.
+# ---------------------------------------------------------------------------
+name: keepalive
+
+on:
+  schedule:
+    - cron: '17 3 * * 1'    # 03:17 UTC every Monday (an odd minute — the top of
+                            # the hour is when GitHub's queue is most congested)
+  workflow_dispatch:
+
+permissions:
+  contents: write           # needed to push the heartbeat commit
+
+jobs:
+  touch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Stamp and commit
+        run: |
+          set -euo pipefail
+          date -u '+%Y-%m-%d %H:%M UTC — still watching' > last-run.txt
+          git config user.name  'aghaz-uptime'
+          git config user.email 'actions@github.com'
+          git add last-run.txt
+          git commit -m "keepalive: $(date -u '+%Y-%m-%d')" || { echo 'nothing to commit'; exit 0; }
+          git push
